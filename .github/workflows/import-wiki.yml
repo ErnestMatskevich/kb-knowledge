@@ -1,0 +1,43 @@
+name: Import Wiki Markdown
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone wiki repository
+        env:
+          WIKI_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
+        run: |
+          git clone "$WIKI_URL" wiki-repo
+
+      - name: Copy wiki markdown into wiki-src
+        run: |
+          mkdir -p wiki-src
+          find wiki-repo -type f -name '*.md' -exec cp {} wiki-src/ \;
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add wiki-src
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit after staging."
+            exit 0
+          fi
+
+          git commit -m "Import wiki markdown into wiki-src"
+          git push origin HEAD:main
