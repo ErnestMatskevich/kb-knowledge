@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - 'wiki-src/**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   sync-wiki:
@@ -14,37 +18,16 @@ jobs:
     steps:
       - name: Checkout main repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect added/modified wiki-src markdown files
-        id: changes
-        run: |
-          CHANGED_FILES=$(git diff --name-status "${{ github.event.before }}" "${{ github.sha }}" | awk '$1 ~ /^(A|M)$/ && $2 ~ /^wiki-src\/.*\.md$/ {print $2}')
-
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "No added/modified wiki-src markdown files."
-          else
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "Changed files:"
-            echo "$CHANGED_FILES"
-          fi
 
       - name: Clone wiki repository
-        if: steps.changes.outputs.has_changes == 'true'
-        env:
-          WIKI_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git
         run: |
-          git clone "$WIKI_URL" wiki-repo
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
 
-      - name: Copy markdown from wiki-src into wiki repository
-        if: steps.changes.outputs.has_changes == 'true'
+      - name: Copy wiki-src contents into wiki repository
         run: |
-          find wiki-src -type f -name '*.md' -exec cp {} wiki-repo/ \;
+          rsync -av wiki-src/ wiki-repo/
 
-      - name: Commit and push wiki changes
-        if: steps.changes.outputs.has_changes == 'true'
+      - name: Commit and push changes to Wiki
         working-directory: wiki-repo
         run: |
           git config user.name "github-actions"
@@ -58,4 +41,4 @@ jobs:
           fi
 
           git commit -m "Sync wiki from wiki-src"
-          git push origin HEAD
+          git push
